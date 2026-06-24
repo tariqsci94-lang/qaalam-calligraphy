@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Qaalam Calligraphy — Islamic Art &amp; Personalised Gifts</title>
+<meta name="description" content="Premium Islamic calligraphy frames, personalised acrylic fridge frames, key chains, dua stickers and light lamps. Customise with your favourite duas and photos."/>
+<link rel="stylesheet" href="style.css"/>
+<!-- Firebase SDK (compat v10) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="store.js"></script>
+<style>
+/* ── App Loading Overlay ───────────────────────────────── */
+#app-loading {
+  position:fixed; inset:0; background:#0f0e0b;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  z-index:9999; gap:1.2rem; transition:opacity .5s;
+}
+#app-loading.fade { opacity:0; pointer-events:none; }
+.spinner {
+  width:48px; height:48px; border:3px solid rgba(201,168,76,.2);
+  border-top-color:#c9a84c; border-radius:50%; animation:spin .8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-brand { font-family:'Georgia',serif; font-size:1.3rem; color:#c9a84c; letter-spacing:.08em; }
+.loading-sub   { font-size:.8rem; color:#666; }
+
+/* ── Firebase Error ────────────────────────────────────── */
+#firebase-error {
+  display:none; position:fixed; inset:0; background:#0f0e0b;
+  align-items:center; justify-content:center; z-index:9999; padding:2rem;
+}
+.error-box {
+  background:#1a1916; border:1px solid #c9a84c; border-radius:16px;
+  padding:2.5rem; max-width:520px; width:100%; text-align:center;
+}
+.error-box h2 { color:#c9a84c; font-size:1.4rem; margin-bottom:1rem; }
+.error-box p  { color:#aaa; font-size:.9rem; line-height:1.6; margin-bottom:1rem; }
+.error-box code { background:#111; padding:.2rem .5rem; border-radius:4px; color:#c9a84c; font-size:.82rem; }
+.error-box a  { color:#c9a84c; }
+
+/* ── Toast ─────────────────────────────────────────────── */
+#toast-container { position:fixed;top:1.2rem;right:1.2rem;z-index:10000;display:flex;flex-direction:column;gap:.5rem; }
+.toast { padding:.75rem 1.2rem;border-radius:10px;font-size:.85rem;font-weight:500;color:#fff;backdrop-filter:blur(8px);opacity:0;transform:translateX(40px);transition:all .3s;max-width:320px; }
+.toast.show { opacity:1; transform:translateX(0); }
+.toast.success { background:rgba(34,197,94,.9); }
+.toast.error   { background:rgba(239,68,68,.9); }
+.toast.info    { background:rgba(201,168,76,.9); }
+</style>
+</head>
+<body>
+
+<!-- ═══ APP LOADING ═════════════════════════════════════════ -->
+<div id="app-loading">
+  <div class="spinner"></div>
+  <div class="loading-brand">Qaalam Calligraphy</div>
+  <div class="loading-sub">Loading products…</div>
+</div>
+
+<!-- ═══ FIREBASE ERROR ══════════════════════════════════════ -->
+<div id="firebase-error">
+  <div class="error-box">
+    <h2>🔥 Firebase Not Configured</h2>
+    <p>Open <code>firebase-config.js</code> and replace the placeholder values with your Firebase project credentials.</p>
+    <p style="font-size:.8rem;color:#666">
+      1. Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a><br/>
+      2. Create a project → Add Web App → copy the config<br/>
+      3. Paste your values into <code>firebase-config.js</code>
+    </p>
+  </div>
+</div>
+
+<!-- ═══ TOAST ═══════════════════════════════════════════════ -->
+<div id="toast-container"></div>
+
+<!-- ═══ NAV ═════════════════════════════════════════════════ -->
+<nav class="nav" id="main-nav">
+  <a href="#" class="nav-logo">
+    <img src="logo.png" alt="Qaalam Calligraphy" onerror="this.style.display='none'"/>
+    <span class="nav-logo-text">Qaalam Calligraphy</span>
+  </a>
+  <div class="nav-links">
+    <a href="#products" class="nav-link" id="nav-shop">Shop All</a>
+    <a href="#" class="nav-link" data-nav-cat="wall-frames">Wall Frames</a>
+    <a href="#" class="nav-link" data-nav-cat="fridge-frames">Fridge Frames</a>
+    <a href="#" class="nav-link" data-nav-cat="key-chains">Key Chains</a>
+    <a href="#" class="nav-link" data-nav-cat="light-lamps">Light Lamps</a>
+  </div>
+  <div class="nav-actions">
+    <a href="admin.html" class="btn btn-ghost btn-sm">Admin</a>
+    <button class="btn btn-icon btn-ghost cart-btn" id="cart-btn" aria-label="Open cart">
+      🛒<span class="cart-badge" id="cart-badge" style="display:none">0</span>
+    </button>
+  </div>
+</nav>
+
+<!-- ═══ HERO ══════════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-pattern"></div>
+  <div class="hero-content">
+    <div class="hero-tag">✨ &nbsp;Handcrafted with Love &amp; Faith</div>
+    <h1 class="hero-title">Islamic Art <span class="gold-text">Personalised</span><br/>for Your Home</h1>
+    <p class="hero-subtitle">Premium calligraphy frames, acrylic fridge photos, key chains and light lamps — customised with your favourite duas and cherished photos.</p>
+    <div class="hero-actions">
+      <button class="btn btn-gold btn-lg" id="hero-shop-btn">Shop Now &nbsp;→</button>
+      <button class="btn btn-outline btn-lg" data-nav-cat="wall-frames">View Wall Frames</button>
+    </div>
+    <div class="hero-stats">
+      <div><div class="hero-stat-num">2000+</div><div class="hero-stat-label">Happy Customers</div></div>
+      <div><div class="hero-stat-num">5★</div><div class="hero-stat-label">Avg. Rating</div></div>
+      <div><div class="hero-stat-num">5</div><div class="hero-stat-label">Product Types</div></div>
+    </div>
+  </div>
+  <div class="hero-arabic">بِسْمِ اللَّهِ<br/>الرَّحْمَٰنِ<br/>الرَّحِيمِ</div>
+</section>
+
+<!-- ═══ FEATURES STRIP ════════════════════════════════════════ -->
+<div class="features-strip">
+  <div class="features-grid">
+    <div class="feature-item"><div class="feature-icon">📸</div><div class="feature-name">Photo Upload</div><div class="feature-desc">Your memories, beautifully framed</div></div>
+    <div class="feature-item"><div class="feature-icon">☪️</div><div class="feature-name">Islamic Duas</div><div class="feature-desc">15+ duas to choose from</div></div>
+    <div class="feature-item"><div class="feature-icon">🎁</div><div class="feature-name">Perfect Gift</div><div class="feature-desc">Weddings, Eid &amp; birthdays</div></div>
+    <div class="feature-item"><div class="feature-icon">🚚</div><div class="feature-name">Pan-India Delivery</div><div class="feature-desc">Free shipping above ₹999</div></div>
+    <div class="feature-item"><div class="feature-icon">💎</div><div class="feature-name">Premium Quality</div><div class="feature-desc">Acrylic &amp; high-res prints</div></div>
+  </div>
+</div>
+
+<!-- ═══ PRODUCTS ══════════════════════════════════════════════ -->
+<section class="section" id="products">
+  <div class="section-header">
+    <div class="section-tag">Our Collection</div>
+    <h2 class="section-title">Personalised Islamic Gifts</h2>
+    <p class="section-subtitle">Every item handcrafted and shipped with care across India.</p>
+  </div>
+  <div class="cat-tabs" id="cat-tabs"></div>
+  <div class="products-grid" id="products-grid"></div>
+</section>
+
+<!-- ═══ TESTIMONIALS ══════════════════════════════════════════ -->
+<section class="section" style="background:var(--surface)">
+  <div class="section-header">
+    <div class="section-tag">Customer Love</div>
+    <h2 class="section-title">What Our Customers Say</h2>
+  </div>
+  <div class="testimonials-grid">
+    <div class="testimonial-card"><div class="stars">★★★★★</div><p class="testimonial-text">"The Ayat ul Kursi frame is absolutely stunning. The quality is amazing and it arrived beautifully packaged. Will definitely order again!"</p><div class="testimonial-author"><div class="author-avatar">👩</div><div><div class="author-name">Fatima A.</div><div class="author-city">Mumbai</div></div></div></div>
+    <div class="testimonial-card"><div class="stars">★★★★★</div><p class="testimonial-text">"Ordered the Polaroid fridge frames as Eid gifts — everyone loved them! The photo quality is perfect and the calligraphy looks so elegant."</p><div class="testimonial-author"><div class="author-avatar">👨</div><div><div class="author-name">Zubair K.</div><div class="author-city">Hyderabad</div></div></div></div>
+    <div class="testimonial-card"><div class="stars">★★★★★</div><p class="testimonial-text">"The acrylic light lamp is gorgeous! My parents loved it as an anniversary gift. The RGB mode looks magical. Highly recommend Qaalam!"</p><div class="testimonial-author"><div class="author-avatar">👩</div><div><div class="author-name">Ayesha M.</div><div class="author-city">Bangalore</div></div></div></div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═════════════════════════════════════════════════ -->
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <img src="logo.png" alt="Qaalam" onerror="this.style.display='none'"/>
+      <p>Premium Islamic calligraphy art and personalised gifts. Made with love, delivered across India.</p>
+      <div class="footer-socials" style="margin-top:var(--sp-md)">
+        <a href="#" class="social-btn" title="Instagram">📷</a>
+        <a href="#" class="social-btn" title="WhatsApp">💬</a>
+        <a href="#" class="social-btn" title="Facebook">📘</a>
+      </div>
+    </div>
+    <div>
+      <div class="footer-heading">Shop</div>
+      <div class="footer-links">
+        <a class="footer-link" style="cursor:pointer" data-nav-cat="wall-frames">Wall Frames</a>
+        <a class="footer-link" style="cursor:pointer" data-nav-cat="stickers">Dua Stickers</a>
+        <a class="footer-link" style="cursor:pointer" data-nav-cat="fridge-frames">Fridge Frames</a>
+        <a class="footer-link" style="cursor:pointer" data-nav-cat="key-chains">Key Chains</a>
+        <a class="footer-link" style="cursor:pointer" data-nav-cat="light-lamps">Light Lamps</a>
+      </div>
+    </div>
+    <div>
+      <div class="footer-heading">Help</div>
+      <div class="footer-links">
+        <a href="#" class="footer-link">Shipping Info</a>
+        <a href="#" class="footer-link">Return Policy</a>
+        <a href="#" class="footer-link">Custom Orders</a>
+        <a href="#" class="footer-link">FAQ</a>
+      </div>
+    </div>
+    <div>
+      <div class="footer-heading">Contact</div>
+      <div class="footer-links" id="footer-contact">
+        <a href="#" class="footer-link">📞 +91 98765 43210</a>
+        <a href="#" class="footer-link">✉️ hello@qaalam.com</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2025 Qaalam Calligraphy. All rights reserved. Made with ❤️ in India.</p>
+  </div>
+</footer>
+
+<!-- ═══ PRODUCT DETAIL MODAL ══════════════════════════════════ -->
+<div class="modal-overlay" id="product-modal-overlay">
+  <div class="modal modal-wide" id="product-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="product-modal-title">Product</span>
+      <button class="modal-close" id="product-modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="product-modal-body"></div>
+  </div>
+</div>
+
+<!-- ═══ CART DRAWER ═══════════════════════════════════════════ -->
+<div class="cart-overlay" id="cart-overlay">
+  <div class="cart-drawer">
+    <div class="cart-header">
+      <span class="cart-title">Your Cart 🛒</span>
+      <button class="modal-close" id="cart-close-btn">✕</button>
+    </div>
+    <div class="cart-items" id="cart-items-list"></div>
+    <div class="cart-footer" id="cart-footer"></div>
+  </div>
+</div>
+
+<!-- ═══ CHECKOUT MODAL ════════════════════════════════════════ -->
+<div class="modal-overlay" id="checkout-overlay">
+  <div class="modal" id="checkout-modal">
+    <div class="modal-header">
+      <span class="modal-title">Checkout</span>
+      <button class="modal-close" id="checkout-close-btn">✕</button>
+    </div>
+    <div class="modal-body" id="checkout-body"></div>
+  </div>
+</div>
+
+<script>
+/* ── Utilities ───────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const fmt = n => '₹' + Number(n||0).toLocaleString('en-IN');
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, type='info', dur=3500) {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  $('toast-container').appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, dur);
+}
+
+/* ── Loading helpers ────────────────────────────────────────── */
+function hideAppLoading() {
+  const el = $('app-loading');
+  el.classList.add('fade');
+  setTimeout(() => el.style.display = 'none', 500);
+}
+function showFirebaseError() {
+  $('app-loading').style.display = 'none';
+  const el = $('firebase-error');
+  el.style.display = 'flex';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOOT
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await Store.init();
+
+    // Real-time product updates (admin adds new product → store refreshes)
+    Store.onUpdate('products', () => {
+      renderCatTabs();
+      renderProductsGrid();
+    });
+
+    hideAppLoading();
+    initEventListeners();
+    renderCatTabs();
+    renderProductsGrid();
+    updateCartBadge();
+
+    // Update footer contact info from settings
+    const s = Store.getSettings();
+    if(s.whatsapp || s.email) {
+      const fc = $('footer-contact');
+      if(fc) fc.innerHTML = `
+        ${s.whatsapp?`<a href="https://wa.me/${s.whatsapp.replace(/\D/g,'')}" class="footer-link">📞 ${escHtml(s.whatsapp)}</a>`:''}
+        ${s.email?`<a href="mailto:${escHtml(s.email)}" class="footer-link">✉️ ${escHtml(s.email)}</a>`:''}`;
+    }
+  } catch(err) {
+    if(err.message === 'FIREBASE_NOT_CONFIGURED') {
+      showFirebaseError();
+    } else {
+      hideAppLoading();
+      toast('Could not load products. Please refresh the page.', 'error', 6000);
+      console.error('Store init error:', err);
+    }
+  }
+});
+
+/* ── Global Event Listeners ─────────────────────────────────── */
+let activeCategory = 'all';
+
+function initEventListeners() {
+  // Nav
+  $('cart-btn').addEventListener('click', openCart);
+  $('hero-shop-btn').addEventListener('click', () => document.getElementById('products')?.scrollIntoView({ behavior:'smooth' }));
+  document.querySelectorAll('[data-nav-cat]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      activeCategory = el.dataset.navCat;
+      renderCatTabs();
+      renderProductsGrid();
+      document.getElementById('products')?.scrollIntoView({ behavior:'smooth' });
+    });
+  });
+
+  // Product modal
+  $('product-modal-close').addEventListener('click', closeProductModal);
+  $('product-modal-overlay').addEventListener('click', e => { if(e.target===$('product-modal-overlay')) closeProductModal(); });
+
+  // Cart drawer
+  $('cart-close-btn').addEventListener('click', closeCart);
+  $('cart-overlay').addEventListener('click', e => { if(e.target===$('cart-overlay')) closeCart(); });
+
+  // Cart item actions — persistent delegation (never re-added)
+  $('cart-items-list').addEventListener('click', e => {
+    const btn    = e.target.closest('[data-action]');
+    if(!btn) return;
+    const cartId = btn.dataset.cartId;
+    const action = btn.dataset.action;
+    if(action === 'remove') {
+      Store.removeFromCart(cartId);
+    } else if(action === 'inc') {
+      const item = Store.getCart().find(i => i.cartId === cartId);
+      if(item) Store.updateCartQty(cartId, item.qty + 1);
+    } else if(action === 'dec') {
+      const item = Store.getCart().find(i => i.cartId === cartId);
+      if(item) {
+        if(item.qty <= 1) Store.removeFromCart(cartId);
+        else Store.updateCartQty(cartId, item.qty - 1);
+      }
+    }
+    renderCart();
+    updateCartBadge();
+  });
+
+  // Checkout
+  $('checkout-close-btn').addEventListener('click', closeCheckout);
+  $('checkout-overlay').addEventListener('click', e => { if(e.target===$('checkout-overlay')) closeCheckout(); });
+
+  // ESC
+  document.addEventListener('keydown', e => {
+    if(e.key==='Escape') { closeProductModal(); closeCart(); closeCheckout(); }
+  });
+}
+
+/* ── Category Tabs ──────────────────────────────────────────── */
+function renderCatTabs() {
+  const cats     = Store.getCategories();
+  const products = Store.getProducts();
+  $('cat-tabs').innerHTML = cats.map(c => {
+    const count = c.id === 'all' ? products.length : products.filter(p => p.active && p.category === c.id).length;
+    return `<button class="cat-tab${activeCategory===c.id?' active':''}" data-cat="${c.id}">
+      ${c.emoji} ${c.label} <span class="cat-count">${count}</span>
+    </button>`;
+  }).join('');
+  $('cat-tabs').querySelectorAll('[data-cat]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeCategory = btn.dataset.cat;
+      renderCatTabs();
+      renderProductsGrid();
+    });
+  });
+}
+
+/* ── Product Grid ───────────────────────────────────────────── */
+function renderProductsGrid() {
+  const all      = Store.getProducts().filter(p => p.active);
+  const filtered = activeCategory === 'all' ? all : all.filter(p => p.category === activeCategory);
+  const grid     = $('products-grid');
+  if(!filtered.length) {
+    grid.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--text-muted);grid-column:1/-1">
+      <div style="font-size:3rem;margin-bottom:1rem">✨</div>
+      <p>No products in this category yet. Check back soon!</p>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(p => `
+    <div class="product-card" data-product-id="${p.id}">
+      <div class="product-img-wrap">
+        ${p.image
+          ? `<img src="${p.image}" alt="${escHtml(p.name)}" class="product-img"/>`
+          : `<div class="product-img-placeholder">${p.emoji||'🎁'}</div>`}
+        ${p.badge ? `<span class="product-badge">${escHtml(p.badge)}</span>` : ''}
+        ${p.featured ? '<span class="product-featured-badge">⭐ Featured</span>' : ''}
+      </div>
+      <div class="product-body">
+        <div class="product-cat">${escHtml(p.category?.replace('-',' ')?.replace(/\b\w/g, c=>c.toUpperCase())||'')}</div>
+        <h3 class="product-name">${escHtml(p.name)}</h3>
+        <div class="product-price-row">
+          <span class="product-price">${fmt(p.price)}</span>
+          ${p.comparePrice ? `<span class="product-compare">${fmt(p.comparePrice)}</span>` : ''}
+        </div>
+        <button class="btn btn-gold w-full" data-open-product="${p.id}">Customise &amp; Order →</button>
+      </div>
+    </div>`).join('');
+
+  grid.querySelectorAll('[data-open-product]').forEach(btn => {
+    btn.addEventListener('click', () => openProductModal(btn.dataset.openProduct));
+  });
+}
+
+/* ── Product Modal ──────────────────────────────────────────── */
+let currentProduct   = null;
+let customState      = {};
+let uploadedPhoto    = null;
+let uploadedPhoto2   = null;
+
+function openProductModal(id) {
+  const p = Store.getProductById(id);
+  if(!p) return;
+  currentProduct = p;
+  customState    = { qty: 1 };
+  uploadedPhoto  = null;
+  uploadedPhoto2 = null;
+  renderProductModalBody();
+  $('product-modal-title').textContent = p.name;
+  $('product-modal-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeProductModal() {
+  $('product-modal-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function renderProductModalBody() {
+  const p    = currentProduct;
+  const duas = Store.getDuas();
+
+  const hasPhoto    = p.customisations?.includes('photo_upload');
+  const hasDua      = p.customisations?.includes('dua_selection');
+  const hasFrame    = p.customisations?.includes('frame_color');
+  const hasFinish   = p.customisations?.includes('finish');
+  const hasStand    = p.customisations?.includes('stand_option');
+  const hasDouble   = p.customisations?.includes('double_side');
+  const hasShape    = p.customisations?.includes('shape');
+  const hasContent  = p.customisations?.includes('content');
+  const hasSizeCust = p.customisations?.includes('size');
+  const hasPack     = p.customisations?.includes('pack');
+  const hasLight    = p.customisations?.includes('light_color');
+  const hasCustom   = p.customisations?.includes('custom_text');
+  const vars        = p.variants || {};
+
+  $('product-modal-body').innerHTML = `
+<div class="grid-2" style="gap:var(--sp-xl);align-items:start">
+  <!-- LEFT: image & specs -->
+  <div>
+    <div class="product-modal-img">
+      ${p.image
+        ? `<img id="pm-main-img" src="${p.image}" alt="${escHtml(p.name)}" style="width:100%;border-radius:var(--r-lg);object-fit:contain;max-height:280px"/>`
+        : `<div id="pm-main-img" style="height:220px;background:var(--surface);border-radius:var(--r-lg);display:flex;align-items:center;justify-content:center;font-size:5rem">${p.emoji||'🎁'}</div>`}
+    </div>
+    ${p.specs?.length ? `
+      <div style="margin-top:var(--sp-lg)">
+        <div style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:.6rem">Specifications</div>
+        ${p.specs.map(s=>`<div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border);font-size:.82rem">
+          <span style="color:var(--gold)">✦</span><span>${escHtml(s)}</span>
+        </div>`).join('')}
+      </div>` : ''}
+  </div>
+
+  <!-- RIGHT: customisation -->
+  <div style="display:flex;flex-direction:column;gap:var(--sp-md)">
+    <div>
+      <div class="product-cat" style="margin-bottom:.3rem">${escHtml(p.category?.replace('-',' ')||'')}</div>
+      <div class="product-price-row" style="margin-bottom:.5rem">
+        <span class="product-price" style="font-size:1.6rem">${fmt(p.price)}</span>
+        ${p.comparePrice?`<span class="product-compare">${fmt(p.comparePrice)}</span>`:''}
+        ${p.comparePrice?`<span class="badge badge-green" style="font-size:.68rem">Save ${fmt(p.comparePrice-p.price)}</span>`:''}
+      </div>
+      <p style="font-size:.84rem;color:var(--text-muted);line-height:1.6">${escHtml(p.description||'')}</p>
+    </div>
+
+    <!-- Photo upload -->
+    ${hasPhoto ? `
+    <div class="form-group">
+      <label class="form-label">Your Photo <span style="color:var(--text-dim)">(optional)</span></label>
+      <div class="upload-area" style="padding:var(--sp-md);position:relative" id="upload-area-1">
+        <input type="file" id="photo-upload" accept="image/*" style="display:none"/>
+        <label for="photo-upload" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.4rem">
+          <span id="photo-upload-icon">📷</span>
+          <span id="photo-upload-label" style="font-size:.82rem;color:var(--text-muted)">Click to upload your photo</span>
+        </label>
+      </div>
+      ${hasDouble?`
+      <label class="form-label" style="margin-top:var(--sp-sm)">Second Photo <span style="color:var(--text-dim)">(for double-side)</span></label>
+      <div class="upload-area" style="padding:var(--sp-md)" id="upload-area-2">
+        <input type="file" id="photo-upload-2" accept="image/*" style="display:none"/>
+        <label for="photo-upload-2" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.4rem">
+          <span id="photo2-icon">📷</span>
+          <span id="photo2-label" style="font-size:.82rem;color:var(--text-muted)">Upload 2nd photo</span>
+        </label>
+      </div>`:''}</div>` : ''}
+
+    <!-- Dua Selection -->
+    ${hasDua ? `
+    <div class="form-group">
+      <label class="form-label">Islamic Dua / Calligraphy</label>
+      <select class="form-control" id="dua-sel">
+        <option value="">— Select a Dua —</option>
+        ${duas.map(d=>`<option value="${d.id}">${escHtml(d.name)}</option>`).join('')}
+      </select>
+      <div id="dua-arabic" style="margin-top:.5rem;font-family:'Scheherazade New',serif;font-size:1.3rem;direction:rtl;text-align:center;color:var(--gold);display:none;padding:.5rem;background:var(--surface);border-radius:var(--r-md)"></div>
+    </div>` : ''}
+
+    <!-- Custom Text -->
+    ${hasCustom ? `
+    <div class="form-group">
+      <label class="form-label">Custom Text <span style="color:var(--text-dim)">(optional)</span></label>
+      <input class="form-control" id="custom-text-inp" placeholder="E.g. A name, a date, a short message…"/>
+    </div>` : ''}
+
+    <!-- Frame Colour -->
+    ${hasFrame && vars.frameColor?.length ? `
+    <div class="form-group">
+      <label class="form-label">Frame Colour</label>
+      <div class="variant-pills" id="frame-color-pills">
+        ${vars.frameColor.map(c=>`<button class="pill${customState.frameColor===c?' active':''}" data-frame="${c}">${c}</button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Finish -->
+    ${hasFinish && vars.finish?.length ? `
+    <div class="form-group">
+      <label class="form-label">Finish</label>
+      <div class="variant-pills" id="finish-pills">
+        ${vars.finish.map(f=>`<button class="pill${customState.finish===f?' active':''}" data-finish="${f}">${f}</button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Stand Option -->
+    ${hasStand && vars.stand?.length ? `
+    <div class="form-group">
+      <label class="form-label">Stand Option</label>
+      <div class="variant-pills" id="stand-pills">
+        ${vars.stand.map(s=>`<button class="pill${customState.stand===s?' active':''}" data-stand="${s}">${s}</button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Shape -->
+    ${hasShape && vars.shape?.length ? `
+    <div class="form-group">
+      <label class="form-label">Shape</label>
+      <div class="variant-pills" id="shape-pills">
+        ${vars.shape.map(s=>`<button class="pill${customState.shape===s?' active':''}" data-shape="${s}">${s}</button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Content Type -->
+    ${hasContent && vars.content?.length ? `
+    <div class="form-group">
+      <label class="form-label">Content</label>
+      <div class="variant-pills" id="content-pills">
+        ${vars.content.map(c=>`<button class="pill${customState.content===c?' active':''}" data-content="${c}">${c}</button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Size -->
+    ${hasSizeCust && vars.size?.length ? `
+    <div class="form-group">
+      <label class="form-label">Size</label>
+      <div class="variant-pills" id="size-pills">
+        ${vars.size.map(s=>`<button class="pill${customState.size===s?' active':''}" data-size-opt="${s}">${s}</button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Pack -->
+    ${hasPack && vars.pack?.length ? `
+    <div class="form-group">
+      <label class="form-label">Pack Size</label>
+      <div class="variant-pills" id="pack-pills">
+        ${vars.pack.map(pk=>`<button class="pill${customState.pack===pk?' active':''}" data-pack="${pk}">${pk}</button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Light Colour -->
+    ${hasLight && vars.lightColor?.length ? `
+    <div class="form-group">
+      <label class="form-label">Light Colour</label>
+      <div class="variant-pills" id="light-pills">
+        ${vars.lightColor.map(l=>`<button class="pill${customState.lightColor===l?' active':''}" data-light="${l}">${l}</button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Quantity -->
+    <div class="form-group">
+      <label class="form-label">Quantity</label>
+      <div class="qty-ctrl-lg">
+        <button class="qty-btn-lg" id="qty-dec">−</button>
+        <span class="qty-num-lg" id="qty-disp">${customState.qty||1}</span>
+        <button class="qty-btn-lg" id="qty-inc">+</button>
+      </div>
+    </div>
+
+    <button class="btn btn-gold btn-lg w-full" id="add-to-cart-btn">
+      Add to Cart — ${fmt(p.price * (customState.qty||1))}
+    </button>
+  </div>
+</div>`;
+
+  // ── Bind modal interactions ────────────────────────────
+  // Photo upload 1
+  if($('photo-upload')) {
+    $('photo-upload').addEventListener('change', e => {
+      const f = e.target.files[0]; if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        uploadedPhoto = ev.target.result;
+        $('photo-upload-icon').textContent = '✅';
+        $('photo-upload-label').textContent = f.name;
+        toast('Photo uploaded! 📸', 'success');
+      };
+      reader.readAsDataURL(f);
+    });
+  }
+  // Photo upload 2
+  if($('photo-upload-2')) {
+    $('photo-upload-2').addEventListener('change', e => {
+      const f = e.target.files[0]; if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        uploadedPhoto2 = ev.target.result;
+        $('photo2-icon').textContent  = '✅';
+        $('photo2-label').textContent = f.name;
+        toast('Second photo uploaded! 📸', 'success');
+      };
+      reader.readAsDataURL(f);
+    });
+  }
+  // Dua selection
+  if($('dua-sel')) {
+    $('dua-sel').addEventListener('change', e => {
+      const d = Store.getDuas().find(d => d.id === e.target.value);
+      const arabicDiv = $('dua-arabic');
+      customState.duaName = d?.name || '';
+      if(d?.arabic) {
+        arabicDiv.textContent = d.arabic;
+        arabicDiv.style.display = 'block';
+      } else {
+        arabicDiv.style.display = 'none';
+      }
+    });
+  }
+  // Custom text
+  if($('custom-text-inp')) {
+    $('custom-text-inp').addEventListener('input', e => { customState.customText = e.target.value; });
+  }
+  // Variant pills
+  function bindPills(selector, stateKey, attr) {
+    document.querySelectorAll(`[${attr}]`).forEach(btn => {
+      btn.addEventListener('click', () => {
+        customState[stateKey] = btn.getAttribute(attr);
+        document.querySelectorAll(`[${attr}]`).forEach(b => b.classList.toggle('active', b === btn));
+        updateAddToCartBtn();
+      });
+    });
+  }
+  bindPills('.frame-color-pills', 'frameColor', 'data-frame');
+  bindPills('.finish-pills',      'finish',      'data-finish');
+  bindPills('.stand-pills',       'stand',       'data-stand');
+  bindPills('.shape-pills',       'shape',       'data-shape');
+  bindPills('.content-pills',     'content',     'data-content');
+  bindPills('.size-pills',        'size',        'data-size-opt');
+  bindPills('.pack-pills',        'pack',        'data-pack');
+  bindPills('.light-pills',       'lightColor',  'data-light');
+
+  // Qty
+  $('qty-dec').addEventListener('click', () => {
+    if(customState.qty > 1) { customState.qty--; $('qty-disp').textContent = customState.qty; updateAddToCartBtn(); }
+  });
+  $('qty-inc').addEventListener('click', () => {
+    customState.qty++; $('qty-disp').textContent = customState.qty; updateAddToCartBtn();
+  });
+
+  // Add to cart
+  $('add-to-cart-btn').addEventListener('click', addToCartFromModal);
+}
+
+function updateAddToCartBtn() {
+  const btn = $('add-to-cart-btn');
+  if(btn) btn.textContent = `Add to Cart — ${fmt(currentProduct.price * (customState.qty||1))}`;
+}
+
+function addToCartFromModal() {
+  const p = currentProduct;
+  if(!p) return;
+  if(p.customisations?.includes('photo_upload') && !uploadedPhoto) {
+    toast('💡 No photo uploaded — you can share it on WhatsApp after ordering!', 'info', 4000);
+  }
+  Store.addToCart({
+    productId: p.id,
+    name:      p.name,
+    price:     p.price,
+    qty:       customState.qty || 1,
+    emoji:     p.emoji,
+    photo:     uploadedPhoto,
+    photo2:    uploadedPhoto2,
+    options:   { ...customState },
+    optLabel:  buildOptLabel(),
+  });
+  renderCart();
+  updateCartBadge();
+  closeProductModal();
+  toast(`${p.name} added to cart! 🎉`, 'success');
+  setTimeout(openCart, 400);
+}
+
+function buildOptLabel() {
+  const parts = [];
+  if(customState.frameColor)        parts.push('Frame: '+customState.frameColor);
+  if(customState.finish)            parts.push('Finish: '+customState.finish);
+  if(customState.stand)             parts.push(customState.stand);
+  if(customState.shape)             parts.push('Shape: '+customState.shape);
+  if(customState.size)              parts.push('Size: '+customState.size);
+  if(customState.pack)              parts.push(customState.pack);
+  if(customState.lightColor)        parts.push('Light: '+customState.lightColor);
+  if(customState.content)           parts.push(customState.content);
+  if(customState.duaName)           parts.push('Dua: '+customState.duaName);
+  if(customState.customText)        parts.push('Text: '+customState.customText);
+  return parts.join(' · ') || 'Standard';
+}
+
+/* ── Cart ────────────────────────────────────────────────────── */
+function renderCart() {
+  const items    = Store.getCart();
+  const settings = Store.getSettings();
+  const subtotal = Store.getCartTotal();
+  const shipping = items.length && subtotal>=(settings.freeShippingAt||999) ? 0 : (items.length?(settings.shippingCost||99):0);
+  const total    = subtotal + shipping;
+
+  if(!items.length) {
+    $('cart-items-list').innerHTML = `<div class="cart-empty"><div class="ei">🛒</div><p style="font-size:.9rem;color:var(--text-muted)">Your cart is empty</p><p style="font-size:.78rem;color:var(--text-dim);margin-top:.3rem">Add some beautiful pieces ✨</p></div>`;
+    $('cart-footer').innerHTML = '';
+    return;
+  }
+  $('cart-items-list').innerHTML = items.map(item => `
+    <div class="cart-item">
+      <div class="cart-item-thumb">${item.photo?`<img src="${item.photo}" alt=""/>`:(item.emoji||'🎁')}</div>
+      <div class="cart-item-body">
+        <div class="cart-item-name">${escHtml(item.name)}</div>
+        <div class="cart-item-opts">${escHtml(item.optLabel||'Customised')}</div>
+        <div class="cart-item-row">
+          <div class="cart-qty-ctrl">
+            <button class="qty-btn" data-action="dec" data-cart-id="${item.cartId}">−</button>
+            <span class="qty-num">${item.qty}</span>
+            <button class="qty-btn" data-action="inc" data-cart-id="${item.cartId}">+</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--sp-sm)">
+            <span class="cart-item-price">${fmt(item.price*item.qty)}</span>
+            <button class="cart-remove" data-action="remove" data-cart-id="${item.cartId}" title="Remove">🗑</button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  $('cart-footer').innerHTML = `
+    <div class="cart-summary-row"><span style="color:var(--text-muted)">Subtotal</span><span>${fmt(subtotal)}</span></div>
+    <div class="cart-summary-row"><span style="color:var(--text-muted)">Shipping</span><span>${shipping===0?'<span class="badge badge-green">FREE</span>':fmt(shipping)}</span></div>
+    ${shipping>0?`<div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">Add ${fmt((settings.freeShippingAt||999)-subtotal)} more for free shipping</div>`:''}
+    <div class="cart-summary-row total"><span style="font-weight:600">Total</span><span class="cart-total-val">${fmt(total)}</span></div>
+    <button class="btn btn-gold w-full" style="margin-top:var(--sp-md)" id="checkout-btn">Proceed to Checkout →</button>
+    <button class="btn btn-ghost w-full btn-sm" style="margin-top:var(--sp-sm)" id="cart-continue-btn">Continue Shopping</button>`;
+
+  $('checkout-btn')?.addEventListener('click', () => { closeCart(); openCheckout(); });
+  $('cart-continue-btn')?.addEventListener('click', closeCart);
+}
+
+function updateCartBadge() {
+  const count = Store.getCartCount();
+  const badge = $('cart-badge');
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'flex' : 'none';
+}
+function openCart()  { renderCart(); $('cart-overlay').classList.add('active'); document.body.style.overflow='hidden'; }
+function closeCart() { $('cart-overlay').classList.remove('active'); document.body.style.overflow=''; }
+
+/* ── Checkout ────────────────────────────────────────────────── */
+let checkoutStep    = 1;
+let checkoutData    = {};
+let selectedPayment = 'cod';
+
+function openCheckout() {
+  if(!Store.getCart().length) { toast('Your cart is empty', 'error'); return; }
+  checkoutStep    = 1;
+  checkoutData    = {};
+  selectedPayment = 'cod';
+  renderCheckoutStep();
+  $('checkout-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeCheckout() {
+  $('checkout-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function stepsHTML() {
+  return `<div class="checkout-steps" style="margin-bottom:var(--sp-xl)">
+    <div class="ch-step${checkoutStep===1?' active':''}${checkoutStep>1?' done':''}">
+      <div class="ch-num">${checkoutStep>1?'✓':'1'}</div><div class="ch-label">Details</div></div>
+    <div class="ch-step${checkoutStep===2?' active':''}${checkoutStep>2?' done':''}">
+      <div class="ch-num">${checkoutStep>2?'✓':'2'}</div><div class="ch-label">Review</div></div>
+    <div class="ch-step${checkoutStep===3?' active':''}">
+      <div class="ch-num">3</div><div class="ch-label">Payment</div></div>
+  </div>`;
+}
+
+function renderCheckoutStep() {
+  const settings = Store.getSettings();
+  const items    = Store.getCart();
+  const subtotal = Store.getCartTotal();
+  const shipping = subtotal>=(settings.freeShippingAt||999) ? 0 : (settings.shippingCost||99);
+  const total    = subtotal + shipping;
+
+  if(checkoutStep===1) {
+    $('checkout-body').innerHTML = stepsHTML() + `
+      <div class="grid-2" style="gap:var(--sp-md)">
+        <div class="form-group"><label class="form-label">Full Name *</label><input class="form-control" id="co-name" placeholder="Your full name" value="${escHtml(checkoutData.name||'')}"/></div>
+        <div class="form-group"><label class="form-label">Email</label><input class="form-control" id="co-email" type="email" placeholder="email@example.com" value="${escHtml(checkoutData.email||'')}"/></div>
+        <div class="form-group"><label class="form-label">Phone *</label><input class="form-control" id="co-phone" type="tel" placeholder="+91 98765 43210" value="${escHtml(checkoutData.phone||'')}"/></div>
+        <div class="form-group"><label class="form-label">City</label><input class="form-control" id="co-city" placeholder="Mumbai" value="${escHtml(checkoutData.city||'')}"/></div>
+      </div>
+      <div class="form-group" style="margin-top:var(--sp-md)">
+        <label class="form-label">Delivery Address *</label>
+        <textarea class="form-control" id="co-address" placeholder="House no., Street, Area, City, Pincode" rows="3">${escHtml(checkoutData.address||'')}</textarea>
+      </div>
+      <div class="form-group" style="margin-top:var(--sp-md)">
+        <label class="form-label">Order Notes <span style="color:var(--text-dim)">(optional)</span></label>
+        <textarea class="form-control" id="co-notes" placeholder="Special instructions?" rows="2">${escHtml(checkoutData.notes||'')}</textarea>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:var(--sp-lg)">
+        <button class="btn btn-gold" id="step1-next">Continue →</button>
+      </div>`;
+    $('step1-next').addEventListener('click', step1Next);
+
+  } else if(checkoutStep===2) {
+    $('checkout-body').innerHTML = stepsHTML() + `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-md);margin-bottom:var(--sp-lg);font-size:.86rem">
+        <div style="font-weight:600">${escHtml(checkoutData.name)} · ${escHtml(checkoutData.phone)}</div>
+        <div style="color:var(--text-muted);margin-top:.2rem">${escHtml(checkoutData.address)}${checkoutData.city?', '+escHtml(checkoutData.city):''}</div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:var(--sp-lg)">
+        <table><thead><tr><th>Item</th><th>Options</th><th>Qty</th><th>Price</th></tr></thead>
+        <tbody>${items.map(i=>`<tr>
+          <td><div style="display:flex;align-items:center;gap:.5rem">
+            <div style="width:36px;height:36px;border-radius:var(--r-sm);background:var(--card);display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--border)">
+              ${i.photo?`<img src="${i.photo}" style="width:100%;height:100%;object-fit:cover"/>`:(i.emoji||'🎁')}
+            </div>
+            <span style="font-size:.82rem;font-weight:500">${escHtml(i.name)}</span>
+          </div></td>
+          <td style="font-size:.72rem;color:var(--text-muted);max-width:120px">${escHtml(i.optLabel||'—')}</td>
+          <td>×${i.qty}</td>
+          <td style="font-family:var(--font-display);color:var(--gold)">${fmt(i.price*i.qty)}</td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-lg);margin-bottom:var(--sp-lg)">
+        <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:.3rem"><span style="color:var(--text-muted)">Subtotal</span><span>${fmt(subtotal)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:.3rem"><span style="color:var(--text-muted)">Shipping</span><span>${shipping===0?'FREE':fmt(shipping)}</span></div>
+        <div style="border-top:1px solid var(--border);margin:.6rem 0"></div>
+        <div style="display:flex;justify-content:space-between"><span style="font-weight:600">Total</span><span style="font-family:var(--font-display);font-size:1.3rem;font-weight:700;color:var(--gold)">${fmt(total)}</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <button class="btn btn-ghost" id="step2-back">← Back</button>
+        <button class="btn btn-gold" id="step2-next">Choose Payment →</button>
+      </div>`;
+    $('step2-back').addEventListener('click', () => { checkoutStep=1; renderCheckoutStep(); });
+    $('step2-next').addEventListener('click', () => { checkoutStep=3; renderCheckoutStep(); });
+
+  } else if(checkoutStep===3) {
+    const rzpKey = settings.razorpayKey||'';
+    const hasRzp = rzpKey && !rzpKey.includes('YOUR_KEY');
+
+    $('checkout-body').innerHTML = stepsHTML() + `
+      <h3 style="font-family:var(--font-display);font-size:1.2rem;margin-bottom:var(--sp-lg)">Choose Payment Method</h3>
+      <div id="payment-options">
+        ${hasRzp?`
+        <label class="pay-option" id="opt-rzp" style="display:flex;align-items:center;gap:var(--sp-md);padding:var(--sp-md) var(--sp-lg);border-radius:var(--r-lg);border:2px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s;margin-bottom:var(--sp-sm)">
+          <input type="radio" name="pay-method" value="razorpay" style="accent-color:var(--gold)"/>
+          <div><div style="font-weight:600;font-size:.9rem">💳 Pay Online (UPI / Card / Net Banking)</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">Secure payment via Razorpay</div></div>
+        </label>`:''}
+        <label class="pay-option selected" id="opt-cod" style="display:flex;align-items:center;gap:var(--sp-md);padding:var(--sp-md) var(--sp-lg);border-radius:var(--r-lg);border:2px solid var(--gold);background:var(--gold-pale);cursor:pointer;transition:all .15s;margin-bottom:var(--sp-sm)">
+          <input type="radio" name="pay-method" value="cod" checked style="accent-color:var(--gold)"/>
+          <div><div style="font-weight:600;font-size:.9rem">💵 Cash on Delivery</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">Pay when your order arrives at your door</div></div>
+        </label>
+        <label class="pay-option" id="opt-later" style="display:flex;align-items:center;gap:var(--sp-md);padding:var(--sp-md) var(--sp-lg);border-radius:var(--r-lg);border:2px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s;margin-bottom:var(--sp-md)">
+          <input type="radio" name="pay-method" value="later" style="accent-color:var(--gold)"/>
+          <div><div style="font-weight:600;font-size:.9rem">🔖 Pay via WhatsApp / UPI</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">We'll share payment details on WhatsApp after order</div></div>
+        </label>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-md);display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-lg)">
+        <span style="font-size:.84rem;color:var(--text-muted)">Order Total</span>
+        <span style="font-family:var(--font-display);font-size:1.4rem;font-weight:700;color:var(--gold)">${fmt(total)}</span>
+      </div>
+      <button class="btn btn-gold btn-lg w-full" id="place-order-btn">✅ &nbsp;Place Order — ${fmt(total)}</button>
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:var(--sp-sm)" id="step3-back">← Back to Review</button>`;
+
+    // Payment option styling
+    document.querySelectorAll('input[name="pay-method"]').forEach(radio => {
+      radio.addEventListener('change', e => {
+        selectedPayment = e.target.value;
+        document.querySelectorAll('.pay-option').forEach(lbl => {
+          const r = lbl.querySelector('input');
+          lbl.style.borderColor = r?.checked ? 'var(--gold)' : 'var(--border)';
+          lbl.style.background  = r?.checked ? 'var(--gold-pale)' : 'var(--surface)';
+        });
+      });
+    });
+
+    $('place-order-btn').addEventListener('click', () => {
+      // Always read from DOM to avoid stale variable
+      const checked = document.querySelector('input[name="pay-method"]:checked');
+      const method  = checked ? checked.value : 'cod';
+      processPayment(method, total);
+    });
+    $('step3-back').addEventListener('click', () => { checkoutStep=2; renderCheckoutStep(); });
+  }
+}
+
+function step1Next() {
+  const name    = $('co-name')?.value.trim();
+  const phone   = $('co-phone')?.value.trim();
+  const address = $('co-address')?.value.trim();
+  if(!name)    { toast('Please enter your name', 'error'); $('co-name').focus(); return; }
+  if(!phone)   { toast('Please enter your phone number', 'error'); $('co-phone').focus(); return; }
+  if(!address) { toast('Please enter your delivery address', 'error'); $('co-address').focus(); return; }
+  checkoutData = { name, phone, address, email:$('co-email')?.value.trim(), city:$('co-city')?.value.trim(), notes:$('co-notes')?.value.trim() };
+  checkoutStep = 2;
+  renderCheckoutStep();
+}
+
+/* ── Payment Processing ──────────────────────────────────────── */
+function processPayment(method, amount) {
+  if(method === 'razorpay') {
+    initiateRazorpay(amount);
+  } else {
+    const label = method==='cod' ? 'Cash on Delivery' : 'WhatsApp / UPI (to be arranged)';
+    placeOrder(label, amount);
+  }
+}
+
+/* ── Place Order (async — writes to Firestore) ────────────────── */
+async function placeOrder(paymentMethod, amount) {
+  const btn = $('place-order-btn');
+  if(btn) { btn.textContent = 'Placing Order…'; btn.disabled = true; }
+
+  // Snapshot cart BEFORE addOrder (store does NOT auto-clear cart)
+  const items    = Store.getCart();
+  const subtotal = Store.getCartTotal();
+  const shipping = amount - subtotal;
+
+  try {
+    const order = await Store.addOrder({
+      customer: checkoutData,
+      items, subtotal, shipping, total: amount,
+      paymentMethod,
+      paymentStatus: paymentMethod.includes('Cash') ? 'COD — Pay on delivery' : 'Pending — payment to be arranged',
+    });
+    Store.clearCart();        // Clear cart AFTER order saved
+    updateCartBadge();
+    showOrderSuccess(order);
+  } catch(err) {
+    console.error('Order error:', err);
+    toast('Error placing order. Please try again.', 'error');
+    if(btn) { btn.textContent = `✅ Place Order — ${fmt(amount)}`; btn.disabled = false; }
+  }
+}
+
+/* ── Razorpay (async) ─────────────────────────────────────────── */
+function initiateRazorpay(amount) {
+  const settings = Store.getSettings();
+  const key      = settings.razorpayKey;
+  const btn      = $('place-order-btn');
+  if(btn) { btn.textContent = 'Loading payment…'; btn.disabled = true; }
+
+  // Snapshot cart immediately (before async operations)
+  const cartItems = [...Store.getCart()];
+  const subtotal  = Store.getCartTotal();
+  const shipping  = amount - subtotal;
+
+  function launchRzp() {
+    try {
+      const rzp = new Razorpay({
+        key, amount: amount * 100, currency: 'INR',
+        name: 'Qaalam Calligraphy',
+        description: 'Personalised Islamic Art Order',
+        image: 'logo.png',
+        handler: async resp => {
+          try {
+            const order = await Store.addOrder({
+              customer: checkoutData,
+              items: cartItems, subtotal, shipping, total: amount,
+              paymentMethod: 'Online Payment — Razorpay',
+              paymentStatus: 'Paid Online',
+              paymentId: resp.razorpay_payment_id,
+            });
+            Store.clearCart();
+            updateCartBadge();
+            showOrderSuccess(order);
+          } catch(err) {
+            toast('Payment received but order save failed. Please contact us.', 'error', 8000);
+          }
+        },
+        prefill: { name: checkoutData.name, email: checkoutData.email||'', contact: checkoutData.phone },
+        theme: { color: '#c9a84c' },
+        modal: {
+          ondismiss: () => {
+            if(btn) { btn.textContent=`✅ Place Order — ${fmt(amount)}`; btn.disabled=false; }
+            toast('Payment cancelled. You can choose Cash on Delivery.', 'info', 4000);
+          }
+        }
+      });
+      rzp.open();
+    } catch(err) {
+      if(btn) { btn.textContent=`✅ Place Order — ${fmt(amount)}`; btn.disabled=false; }
+      toast('Payment gateway error. Please use Cash on Delivery.', 'info', 4000);
+    }
+  }
+
+  if(window.Razorpay) {
+    launchRzp();
+  } else {
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = launchRzp;
+    s.onerror = () => {
+      if(btn) { btn.textContent=`✅ Place Order — ${fmt(amount)}`; btn.disabled=false; }
+      toast('Could not load payment gateway. Switching to Cash on Delivery…', 'info', 4000);
+      placeOrder('Cash on Delivery', amount);
+    };
+    document.head.appendChild(s);
+  }
+}
+
+/* ── Order Success ────────────────────────────────────────────── */
+function showOrderSuccess(order) {
+  $('checkout-body').innerHTML = `
+    <div class="order-success">
+      <div class="success-icon">🎉</div>
+      <h3 style="font-family:var(--font-display);font-size:2rem;margin-bottom:var(--sp-sm)">Order Placed!</h3>
+      <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:var(--sp-md)">JazakAllah Khair for your order. We'll start crafting it with love right away!</p>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-lg);display:inline-block;margin-bottom:var(--sp-lg);text-align:center;min-width:200px">
+        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:.3rem">Order ID</div>
+        <div style="font-family:var(--font-display);font-size:1.3rem;color:var(--gold);font-weight:700">${order.id.slice(-10)}</div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">${escHtml(order.paymentMethod||order.paymentStatus)}</div>
+      </div>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:var(--sp-lg)">
+        ${order.customer?.email?`Confirmation note sent to <strong>${escHtml(order.customer.email)}</strong>.<br/>`:''}
+        Delivery in 5–7 business days across India.
+      </p>
+      <button class="btn btn-gold" id="success-continue-btn">Continue Shopping ✨</button>
+    </div>`;
+  $('success-continue-btn').addEventListener('click', () => {
+    closeCheckout();
+    updateCartBadge();
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Admin — Qaalam Calligraphy</title>
+<link rel="stylesheet" href="style.css"/>
+<!-- Firebase SDK (compat v10) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- Firebase Config (user fills in) -->
+<script src="firebase-config.js"></script>
+<!-- Store -->
+<script src="store.js"></script>
+<style>
+/* ── Loading Overlay ──────────────────────────────────── */
+#app-loading {
+  position:fixed; inset:0; background:var(--bg,#0f0e0b);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  z-index:9999; gap:1.2rem;
+}
+.spinner {
+  width:48px; height:48px; border:3px solid rgba(201,168,76,.2);
+  border-top-color:#c9a84c; border-radius:50%; animation:spin .8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-text { color:#c9a84c; font-size:.95rem; letter-spacing:.05em; }
+#firebase-error {
+  display:none; position:fixed; inset:0; background:var(--bg,#0f0e0b);
+  align-items:center; justify-content:center; z-index:9999; padding:2rem;
+}
+.error-box {
+  background:#1a1916; border:1px solid #c9a84c; border-radius:16px;
+  padding:2.5rem; max-width:520px; width:100%; text-align:center;
+}
+.error-box h2 { color:#c9a84c; font-size:1.4rem; margin-bottom:1rem; }
+.error-box p  { color:#aaa; font-size:.9rem; line-height:1.6; margin-bottom:1.2rem; }
+.error-box code { background:#111; padding:.2rem .5rem; border-radius:4px; color:#c9a84c; font-size:.82rem; }
+.error-box a { color:#c9a84c; }
+/* ── Toast ────────────────────────────────────────────── */
+#toast-container { position:fixed;top:1.2rem;right:1.2rem;z-index:10000;display:flex;flex-direction:column;gap:.5rem; }
+.toast { padding:.75rem 1.2rem;border-radius:10px;font-size:.85rem;font-weight:500;color:#fff;backdrop-filter:blur(8px);opacity:0;transform:translateX(40px);transition:all .3s;max-width:320px; }
+.toast.show { opacity:1; transform:translateX(0); }
+.toast.success { background:rgba(34,197,94,.9); }
+.toast.error   { background:rgba(239,68,68,.9); }
+.toast.info    { background:rgba(201,168,76,.9); }
+</style>
+</head>
+<body>
+
+<!-- ═══ LOADING OVERLAY ══════════════════════════════════════ -->
+<div id="app-loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Connecting to database…</div>
+</div>
+
+<!-- ═══ FIREBASE ERROR ═══════════════════════════════════════ -->
+<div id="firebase-error" style="display:none;position:fixed;inset:0;background:var(--bg,#0f0e0b);align-items:center;justify-content:center;z-index:9999;padding:2rem;">
+  <div class="error-box">
+    <h2>🔥 Firebase Not Configured</h2>
+    <p>You need to connect this site to your Firebase project.<br/>Open <code>firebase-config.js</code> and replace the placeholder values with your real Firebase credentials.</p>
+    <p style="font-size:.8rem;color:#666;">
+      1. Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a><br/>
+      2. Create a project → Add a Web App<br/>
+      3. Copy the config and paste into <code>firebase-config.js</code>
+    </p>
+  </div>
+</div>
+
+<!-- ═══ TOAST ════════════════════════════════════════════════ -->
+<div id="toast-container"></div>
+
+<!-- ═══ LOGIN SCREEN ════════════════════════════════════════ -->
+<div class="login-screen" id="login-screen" style="display:none">
+  <div class="login-card">
+    <div class="login-logo">
+      <img src="logo.png" alt="Qaalam" onerror="this.style.display='none'"/>
+      <h1 class="login-title">Qaalam Admin</h1>
+      <p class="login-sub">Enter your admin password to continue</p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Admin Password</label>
+      <input class="form-control" type="password" id="login-pass" placeholder="Password"/>
+    </div>
+    <button class="btn btn-gold w-full" id="login-btn" style="margin-top:var(--sp-md)">Sign In →</button>
+    <div id="login-err" style="color:#ef4444;font-size:.8rem;margin-top:.6rem;display:none">Incorrect password. Try again.</div>
+    <div style="margin-top:1.5rem;text-align:center;font-size:.75rem;color:var(--text-dim)">Default password: <code style="color:var(--gold)">qaalam2024</code></div>
+  </div>
+</div>
+
+<!-- ═══ ADMIN APP ════════════════════════════════════════════ -->
+<div class="admin-app" id="admin-app" style="display:none">
+
+  <!-- Sidebar -->
+  <aside class="admin-sidebar" id="admin-sidebar">
+    <div class="sidebar-logo">
+      <img src="logo.png" alt="Qaalam" onerror="this.style.display='none'" style="height:40px"/>
+      <span style="font-size:1rem;font-weight:700;color:var(--gold)">Qaalam Admin</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard">
+        <span class="nav-icon">📊</span><span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="products">
+        <span class="nav-icon">🛍️</span><span>Products</span>
+        <span class="nav-count" id="nav-prod-count">0</span>
+      </a>
+      <a href="#" class="nav-item" data-page="orders">
+        <span class="nav-icon">📦</span><span>Orders</span>
+        <span class="nav-count" id="nav-ord-count">0</span>
+      </a>
+      <a href="#" class="nav-item" data-page="settings">
+        <span class="nav-icon">⚙️</span><span>Settings</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="index.html" class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:.5rem" target="_blank">🛍️ View Store</a>
+      <button class="btn btn-ghost btn-sm" style="width:100%" id="logout-btn">Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="admin-main" id="admin-main">
+    <header class="admin-header">
+      <button class="btn btn-icon btn-ghost" id="menu-btn">☰</button>
+      <h1 class="page-title" id="page-title">Dashboard</h1>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <div id="sync-indicator" style="display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:var(--text-muted)">
+          <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block"></span>
+          <span id="sync-label">Live</span>
+        </div>
+      </div>
+    </header>
+    <div class="admin-content" id="page-content"></div>
+  </main>
+</div>
+
+<!-- ═══ PRODUCT MODAL ════════════════════════════════════════ -->
+<div class="modal-overlay" id="prod-modal-overlay">
+  <div class="modal modal-wide" id="prod-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="prod-modal-title">Add Product</span>
+      <button class="modal-close" id="prod-modal-close-btn">✕</button>
+    </div>
+    <div class="modal-body" id="prod-modal-body">
+      <!-- Form rendered here -->
+    </div>
+    <div class="modal-footer" id="prod-modal-footer" style="display:none">
+      <button class="btn btn-ghost" id="prod-cancel-btn">Cancel</button>
+      <button class="btn btn-gold" id="prod-save-btn">Add Product</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ORDER DETAIL MODAL ═══════════════════════════════════ -->
+<div class="modal-overlay" id="order-modal-overlay">
+  <div class="modal modal-wide" id="order-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="order-modal-title">Order Details</span>
+      <button class="modal-close" id="order-modal-close-btn">✕</button>
+    </div>
+    <div class="modal-body" id="order-modal-body"></div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM MODAL ════════════════════════════════════════ -->
+<div class="modal-overlay" id="confirm-overlay">
+  <div class="modal modal-sm" id="confirm-modal">
+    <div class="modal-header">
+      <span class="modal-title" id="confirm-title">Confirm</span>
+      <button class="modal-close" id="confirm-close-btn">✕</button>
+    </div>
+    <div class="modal-body" id="confirm-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="confirm-cancel-btn">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Utilities ──────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const fmt = n => '₹' + Number(n||0).toLocaleString('en-IN');
+const fmtDate = s => s ? new Date(s).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—';
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg, type='info', dur=3000) {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  $('toast-container').appendChild(t);
+  requestAnimationFrame(() => { t.classList.add('show'); });
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, dur);
+}
+
+/* ── Loading / Error helpers ───────────────────────────────── */
+function showLoading(msg) {
+  if(msg) $('loading-text').textContent = msg;
+  $('app-loading').style.display = 'flex';
+}
+function hideLoading() { $('app-loading').style.display = 'none'; }
+
+function showFirebaseError() {
+  hideLoading();
+  const el = $('firebase-error');
+  el.style.display = 'flex';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOOT — Firebase init then login/app
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', async () => {
+  showLoading('Connecting to database…');
+
+  try {
+    await Store.init();
+    hideLoading();
+    if (sessionStorage.getItem('qc_admin') === 'true') {
+      showApp();
+    } else {
+      showLogin();
+    }
+  } catch(err) {
+    if (err.message === 'FIREBASE_NOT_CONFIGURED') {
+      showFirebaseError();
+    } else {
+      hideLoading();
+      toast('Database error: ' + err.message, 'error', 8000);
+      showLogin(); // Allow login even if Firebase is slow
+    }
+  }
+});
+
+/* ── Login ──────────────────────────────────────────────────── */
+function showLogin() {
+  $('login-screen').style.display = 'flex';
+  $('admin-app').style.display    = 'none';
+  setTimeout(() => $('login-pass')?.focus(), 100);
+}
+function showApp() {
+  $('login-screen').style.display = 'none';
+  $('admin-app').style.display    = 'flex';
+  initAdminEvents();
+  updateNavCounts();
+  navigate('dashboard');
+
+  // ── Real-time UI refresh (orders & products) ────────────
+  Store.onUpdate('orders', () => {
+    updateNavCounts();
+    if (currentPage === 'orders')    renderOrders();
+    if (currentPage === 'dashboard') renderDashboard();
+    // Flash sync indicator
+    const dot = $('sync-dot');
+    if (dot) { dot.style.background = '#c9a84c'; setTimeout(() => dot.style.background = '#22c55e', 600); }
+  });
+  Store.onUpdate('products', () => {
+    updateNavCounts();
+    if (currentPage === 'products')  renderProducts();
+    if (currentPage === 'dashboard') renderDashboard();
+  });
+}
+
+$('login-btn')?.addEventListener('click', doLogin);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && $('login-screen')?.style.display !== 'none') doLogin();
+});
+function doLogin() {
+  const pass = $('login-pass')?.value || '';
+  if (Store.checkAdminPass(pass)) {
+    sessionStorage.setItem('qc_admin', 'true');
+    $('login-err').style.display = 'none';
+    showApp();
+  } else {
+    $('login-err').style.display = 'block';
+    $('login-pass').value = '';
+    $('login-pass').focus();
+  }
+}
+
+/* ── Init persistent event delegation ─────────────────────── */
+function initAdminEvents() {
+  $('logout-btn')?.addEventListener('click', () => {
+    sessionStorage.removeItem('qc_admin'); showLogin();
+  });
+  $('menu-btn')?.addEventListener('click', () => {
+    $('admin-sidebar').classList.toggle('open');
+  });
+  document.querySelectorAll('[data-page]').forEach(el => {
+    el.addEventListener('click', e => { e.preventDefault(); navigate(el.dataset.page); });
+  });
+
+  // Product modal
+  $('prod-modal-close-btn').addEventListener('click', closeProdModal);
+  $('prod-cancel-btn').addEventListener('click', closeProdModal);
+  $('prod-save-btn').addEventListener('click', saveProdForm);
+  $('prod-modal-overlay').addEventListener('click', e => { if(e.target===$('prod-modal-overlay')) closeProdModal(); });
+
+  // Order modal
+  $('order-modal-close-btn').addEventListener('click', closeOrderModal);
+  $('order-modal-overlay').addEventListener('click', e => { if(e.target===$('order-modal-overlay')) closeOrderModal(); });
+
+  // Confirm modal
+  $('confirm-overlay').addEventListener('click', e => { if(e.target===$('confirm-overlay')) closeConfirm(); });
+  $('confirm-close-btn').addEventListener('click', closeConfirm);
+  $('confirm-cancel-btn').addEventListener('click', closeConfirm);
+
+  // ESC key
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') { closeProdModal(); closeOrderModal(); closeConfirm(); }
+  });
+
+  // Page content: persistent delegation for all dynamic buttons
+  $('page-content').addEventListener('click', e => {
+    const ordRow    = e.target.closest('[data-view-order]');
+    const editBtn   = e.target.closest('[data-edit-id]');
+    const deleteBtn = e.target.closest('[data-delete-id]');
+    const toggleBtn = e.target.closest('[data-toggle-id]');
+    const dashAll   = e.target.closest('#dash-view-all-orders');
+    const dashAdd   = e.target.closest('#dash-add-prod');
+    const addProd   = e.target.closest('#add-prod-btn');
+    if(ordRow)    { openOrderDetail(ordRow.dataset.viewOrder); return; }
+    if(editBtn)   { openEditProduct(editBtn.dataset.editId); return; }
+    if(deleteBtn) { confirmDeleteProduct(deleteBtn.dataset.deleteId, deleteBtn.dataset.deleteName); return; }
+    if(toggleBtn) { toggleProductActive(toggleBtn.dataset.toggleId); return; }
+    if(dashAll)   { navigate('orders'); return; }
+    if(dashAdd)   { navigate('products'); setTimeout(openAddProduct, 100); return; }
+    if(addProd)   { openAddProduct(); return; }
+  });
+
+  // Orders status dropdown — persistent delegation
+  $('page-content').addEventListener('change', async e => {
+    const sel = e.target.closest('[data-status-order-id]');
+    if (!sel) return;
+    try {
+      await Store.updateOrderStatus(sel.dataset.statusOrderId, sel.value);
+      toast(`Status updated to ${sel.value}`, 'success');
+    } catch(err) {
+      toast('Error updating status', 'error');
+    }
+  });
+}
+
+/* ── Navigation ─────────────────────────────────────────────── */
+let currentPage = 'dashboard';
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('[data-page]').forEach(el =>
+    el.classList.toggle('active', el.dataset.page === page)
+  );
+  const titles = { dashboard:'Dashboard', products:'Products', orders:'Orders', settings:'Settings' };
+  $('page-title').textContent = titles[page] || page;
+  ({ dashboard: renderDashboard, products: renderProducts, orders: renderOrders, settings: renderSettings })[page]?.();
+  if(window.innerWidth <= 1100) $('admin-sidebar').classList.remove('open');
+}
+
+function updateNavCounts() {
+  const prods   = Store.getProducts().length;
+  const pending = Store.getOrders().filter(o => o.status==='Pending' || o.status==='Processing').length;
+  $('nav-prod-count').textContent = prods;
+  $('nav-ord-count').textContent  = pending || Store.getOrders().length;
+}
+
+/* ── Status helpers ─────────────────────────────────────────── */
+const STATUS_ORDER = ['Pending','Processing','Shipped','Delivered','Cancelled'];
+function statusClass(s) {
+  return {Pending:'badge-blue',Processing:'badge-gold',Shipped:'badge-grey',Delivered:'badge-green',Cancelled:'badge-red'}[s]||'badge-grey';
+}
+
+/* ════════════════════════════════════════════════════════════
+   DASHBOARD
+════════════════════════════════════════════════════════════ */
+function renderDashboard() {
+  const products = Store.getProducts();
+  const orders   = Store.getOrders();
+  const paidOrds = orders.filter(o => o.paymentStatus?.toLowerCase().includes('paid'));
+  const revenue  = paidOrds.reduce((s,o) => s+(o.total||0), 0);
+  const pending  = orders.filter(o => o.status==='Pending').length;
+
+  $('page-content').innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon">🛍️</div><div class="stat-val">${products.length}</div><div class="stat-lbl">Products</div><div class="stat-sub">${products.filter(p=>p.active).length} active</div></div>
+      <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-val">${orders.length}</div><div class="stat-lbl">Total Orders</div><div class="stat-sub">${pending} pending</div></div>
+      <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-val">${fmt(revenue)}</div><div class="stat-lbl">Online Revenue</div><div class="stat-sub">${paidOrds.length} paid</div></div>
+      <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-val">${fmt(orders.reduce((s,o)=>s+(o.total||0),0))}</div><div class="stat-lbl">Total GMV</div><div class="stat-sub">All orders</div></div>
+    </div>
+
+    <div class="admin-section-header">
+      <h2 class="admin-section-title">Live Orders <span class="badge badge-grey">${orders.length}</span></h2>
+      <button class="btn btn-ghost btn-sm" id="dash-view-all-orders">View All →</button>
+    </div>
+    ${orders.length === 0
+      ? '<div style="text-align:center;padding:var(--sp-2xl);color:var(--text-muted)">No orders yet. Once customers order, they appear here in real-time! 🔥</div>'
+      : `<div class="table-wrap">
+          <table><thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+            ${orders.slice(0,8).map(o=>`<tr style="cursor:pointer" data-view-order="${o.id}">
+              <td><span style="font-family:var(--font-display);color:var(--gold);font-weight:600">${o.id.slice(-8)}</span></td>
+              <td><div style="font-weight:500">${escHtml(o.customer?.name||'—')}</div><div style="font-size:.72rem;color:var(--text-muted)">${escHtml(o.customer?.phone||'')}</div></td>
+              <td>${(o.items||[]).length} item${(o.items||[]).length!==1?'s':''}</td>
+              <td style="font-family:var(--font-display);color:var(--gold)">${fmt(o.total||0)}</td>
+              <td><span class="badge badge-grey" style="font-size:.65rem">${escHtml(o.paymentMethod||o.paymentStatus||'Pending')}</span></td>
+              <td><span class="badge ${statusClass(o.status)}">${o.status||'Pending'}</span></td>
+              <td style="font-size:.76rem;color:var(--text-muted)">${fmtDate(o.createdAt)}</td>
+            </tr>`).join('')}
+          </tbody></table>
+        </div>`}
+
+    <div class="admin-section-header" style="margin-top:var(--sp-xl)">
+      <h2 class="admin-section-title">Products</h2>
+      <button class="btn btn-gold btn-sm" id="dash-add-prod">+ Add Product</button>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Status</th></tr></thead>
+      <tbody>
+        ${products.map(p=>`<tr>
+          <td><div class="prod-thumb">${p.image?`<img src="${p.image}"/>`:(p.emoji||'🎁')}</div></td>
+          <td style="font-weight:500">${escHtml(p.name)}${p.badge?` <span class="badge badge-gold" style="margin-left:.4rem">${escHtml(p.badge)}</span>`:''}</td>
+          <td style="font-size:.78rem;color:var(--text-muted)">${escHtml(p.category)}</td>
+          <td style="font-family:var(--font-display);color:var(--gold)">${fmt(p.price)}</td>
+          <td><span class="badge ${p.active?'badge-green':'badge-red'}">${p.active?'Active':'Inactive'}</span></td>
+        </tr>`).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+/* ════════════════════════════════════════════════════════════
+   PRODUCTS
+════════════════════════════════════════════════════════════ */
+function renderProducts() {
+  const products = Store.getProducts();
+  $('page-content').innerHTML = `
+    <div class="admin-section-header">
+      <h2 class="admin-section-title">Products <span class="badge badge-grey">${products.length}</span></h2>
+      <button class="btn btn-gold" id="add-prod-btn">+ Add Product</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
+        <tbody id="prod-tbody">
+          ${products.map(p => prodRow(p)).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${products.length===0?'<div style="text-align:center;padding:var(--sp-2xl);color:var(--text-muted)">No products yet. Add your first product!</div>':''}`;
+}
+
+function prodRow(p) {
+  return `<tr id="row-${p.id}">
+    <td><div class="prod-thumb">${p.image?`<img src="${p.image}"/>`:(p.emoji||'🎁')}</div></td>
+    <td>
+      <div style="font-weight:600;font-size:.88rem">${escHtml(p.name)}</div>
+      ${p.badge?`<span class="badge badge-gold" style="margin-top:3px;font-size:.6rem">${escHtml(p.badge)}</span>`:''}
+    </td>
+    <td style="font-size:.78rem;color:var(--text-muted)">${escHtml(p.category)}</td>
+    <td>
+      <div style="font-family:var(--font-display);color:var(--gold)">${fmt(p.price)}</div>
+      ${p.comparePrice?`<div style="font-size:.72rem;color:var(--text-dim);text-decoration:line-through">${fmt(p.comparePrice)}</div>`:''}
+    </td>
+    <td style="font-size:.84rem">${p.stock??'∞'}</td>
+    <td>
+      <label class="switch" style="cursor:pointer">
+        <div class="switch-input${p.active?' on':''}" data-toggle-id="${p.id}" title="${p.active?'Click to deactivate':'Click to activate'}"></div>
+      </label>
+    </td>
+    <td>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn btn-ghost btn-sm btn-icon" data-edit-id="${p.id}" title="Edit">✏️</button>
+        <button class="btn btn-danger btn-sm btn-icon" data-delete-id="${p.id}" data-delete-name="${escHtml(p.name)}" title="Delete">🗑</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+async function toggleProductActive(id) {
+  const p = Store.getProductById(id);
+  if(!p) return;
+  try {
+    await Store.updateProduct(id, { active: !p.active });
+    toast(`${p.name} ${!p.active?'activated':'deactivated'}`, 'success');
+    // renderProducts() called by onUpdate listener
+  } catch(err) {
+    toast('Error updating product', 'error');
+  }
+}
+
+/* ── Product Form State ─────────────────────────────────────── */
+let editingProductId = null;
+let prodImage        = null;
+let prodSpecs        = [];
+
+function openAddProduct() {
+  editingProductId = null; prodImage = null; prodSpecs = [];
+  $('prod-modal-title').textContent = 'Add Product';
+  $('prod-save-btn').textContent    = 'Add Product';
+  renderProdForm(null);
+  $('prod-modal-footer').style.display = 'flex';
+  $('prod-modal-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function openEditProduct(id) {
+  const p = Store.getProductById(id);
+  if(!p) return;
+  editingProductId = id;
+  prodImage        = p.image || null;
+  prodSpecs        = [...(p.specs||[])];
+  $('prod-modal-title').textContent = 'Edit Product';
+  $('prod-save-btn').textContent    = 'Save Changes';
+  renderProdForm(p);
+  $('prod-modal-footer').style.display = 'flex';
+  $('prod-modal-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeProdModal() {
+  $('prod-modal-overlay').classList.remove('active');
+  $('prod-modal-footer').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function renderProdForm(p) {
+  const cats = Store.getCategories().filter(c => c.id !== 'all');
+  const customOptions = [
+    {id:'photo_upload',  label:'📸 Photo Upload'},
+    {id:'dua_selection', label:'☪️ Dua Selection'},
+    {id:'frame_color',   label:'🎨 Frame Colour'},
+    {id:'finish',        label:'✨ Finish'},
+    {id:'stand_option',  label:'🖼 Stand Option'},
+    {id:'double_side',   label:'↔️ Double Side'},
+    {id:'shape',         label:'💎 Shape'},
+    {id:'content',       label:'📝 Content Type'},
+    {id:'size',          label:'📏 Size'},
+    {id:'pack',          label:'📦 Pack Size'},
+    {id:'light_color',   label:'💡 Light Colour'},
+    {id:'custom_text',   label:'✍️ Custom Text'},
+  ];
+  const cust = p?.customisations||[];
+  const imgHTML = prodImage
+    ? `<img id="img-preview" src="${prodImage}" style="max-height:150px;object-fit:contain;border-radius:var(--r-md);display:block;margin:0 auto"/>`
+    : `<div id="img-upload-ph"><div class="upload-icon">🖼️</div><div class="upload-label"><strong>Click</strong> to upload image</div></div>
+       <img id="img-preview" style="display:none;max-height:150px;object-fit:contain;border-radius:var(--r-md);margin:0 auto"/>`;
+
+  $('prod-modal-body').innerHTML = `
+<div class="grid-2" style="gap:var(--sp-xl)">
+  <div style="display:flex;flex-direction:column;gap:var(--sp-md)">
+    <div class="form-group">
+      <label class="form-label">Product Image</label>
+      <label for="p-img-input" class="upload-area" style="padding:var(--sp-lg);cursor:pointer;display:block">
+        <input type="file" id="p-img-input" accept="image/*" style="display:none"/>
+        ${imgHTML}
+      </label>
+    </div>
+    <div class="form-group"><label class="form-label">Product Name *</label>
+      <input class="form-control" id="p-name" placeholder="e.g. A4 Islamic Calligraphy Frame" value="${escHtml(p?.name||'')}"/></div>
+    <div class="form-group"><label class="form-label">Category *</label>
+      <select class="form-control" id="p-cat">
+        ${cats.map(c=>`<option value="${c.id}" ${p?.category===c.id?'selected':''}>${c.emoji} ${c.label}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label class="form-label">Description</label>
+      <textarea class="form-control" id="p-desc" rows="4" placeholder="Product description…">${escHtml(p?.description||'')}</textarea></div>
+    <div class="form-group"><label class="form-label">Badge <span style="color:var(--text-dim)">(e.g. Bestseller, New)</span></label>
+      <input class="form-control" id="p-badge" placeholder="Bestseller" value="${escHtml(p?.badge||'')}"/></div>
+    <div class="form-group"><label class="form-label">Emoji Icon</label>
+      <input class="form-control" id="p-emoji" placeholder="🖼️" value="${p?.emoji||''}"/></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:var(--sp-md)">
+    <div class="grid-2" style="gap:var(--sp-md)">
+      <div class="form-group"><label class="form-label">Price (₹) *</label>
+        <input class="form-control" id="p-price" type="number" min="0" placeholder="799" value="${p?.price||''}"/></div>
+      <div class="form-group"><label class="form-label">Compare Price (₹)</label>
+        <input class="form-control" id="p-compare" type="number" min="0" placeholder="1099" value="${p?.comparePrice||''}"/></div>
+    </div>
+    <div class="grid-2" style="gap:var(--sp-md)">
+      <div class="form-group"><label class="form-label">Stock Qty</label>
+        <input class="form-control" id="p-stock" type="number" min="0" placeholder="100" value="${p?.stock??''}"/></div>
+      <div class="form-group"><label class="form-label">Status</label>
+        <select class="form-control" id="p-active">
+          <option value="true" ${p?.active!==false?'selected':''}>✅ Active</option>
+          <option value="false" ${p?.active===false?'selected':''}>⛔ Inactive</option>
+        </select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Featured on Hero?</label>
+      <select class="form-control" id="p-featured">
+        <option value="true" ${p?.featured?'selected':''}>Yes</option>
+        <option value="false" ${!p?.featured?'selected':''}>No</option>
+      </select></div>
+    <div class="form-group">
+      <label class="form-label">Specifications</label>
+      <div id="specs-chips" class="spec-chips-wrap"></div>
+      <div class="spec-input-row" style="margin-top:var(--sp-sm)">
+        <input class="form-control" id="spec-inp" placeholder="e.g. Size: A4 (210×297 mm)"/>
+        <button class="btn btn-outline btn-sm" id="spec-add-btn">+ Add</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Customisation Options</label>
+      <div style="display:flex;flex-wrap:wrap;gap:var(--sp-sm)">
+        ${customOptions.map(o=>`
+          <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.8rem;padding:.35rem .8rem;border-radius:var(--r-full);border:1px solid var(--border);transition:all .15s">
+            <input type="checkbox" id="co-${o.id}" value="${o.id}" style="accent-color:var(--gold)" ${cust.includes(o.id)?'checked':''}/>  ${o.label}
+          </label>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Variant Options</label>
+      <textarea class="form-control" id="p-variants" rows="5" placeholder="frameColor: Black, White, Gold&#10;finish: Matte, Glossy&#10;size: Small, Medium, Large">${variantsToText(p?.variants||{})}</textarea>
+      <div style="font-size:.72rem;color:var(--text-dim);margin-top:.3rem">One per line: <code style="color:var(--gold)">key: option1, option2</code></div>
+    </div>
+  </div>
+</div>`;
+
+  $('p-img-input').addEventListener('change', handleProdImg);
+  $('spec-add-btn').addEventListener('click', addSpec);
+  $('spec-inp').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); addSpec(); } });
+  renderSpecChips();
+}
+
+function handleProdImg(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  if(file.size > 3*1024*1024) { toast('Image too large (max 3 MB)', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    prodImage = ev.target.result;
+    const preview = $('img-preview');
+    const ph      = $('img-upload-ph');
+    if(preview) { preview.src = prodImage; preview.style.display = 'block'; }
+    if(ph)      ph.style.display = 'none';
+    toast('Image uploaded ✅', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderSpecChips() {
+  const wrap = $('specs-chips');
+  if(!wrap) return;
+  wrap.innerHTML = prodSpecs.map((s,i)=>
+    `<div class="spec-chip">${escHtml(s)}<span class="remove" data-spec-idx="${i}">✕</span></div>`
+  ).join('');
+  wrap.querySelectorAll('.remove').forEach(btn =>
+    btn.addEventListener('click', () => { prodSpecs.splice(+btn.dataset.specIdx,1); renderSpecChips(); })
+  );
+}
+function addSpec() {
+  const inp = $('spec-inp'); if(!inp) return;
+  const v = inp.value.trim(); if(!v) return;
+  prodSpecs.push(v); inp.value=''; renderSpecChips();
+}
+
+function variantsToText(v) {
+  if(!v || !Object.keys(v).length) return '';
+  return Object.entries(v).map(([k,vals])=>`${k}: ${(Array.isArray(vals)?vals:[vals]).join(', ')}`).join('\n');
+}
+function textToVariants(text) {
+  const obj = {};
+  text.split('\n').forEach(line => {
+    const colon = line.indexOf(':'); if(colon<0) return;
+    const key  = line.slice(0,colon).trim();
+    const vals = line.slice(colon+1).split(',').map(s=>s.trim()).filter(Boolean);
+    if(key && vals.length) obj[key] = vals;
+  });
+  return obj;
+}
+
+/* ── Save Product (async — writes to Firestore) ───────────── */
+async function saveProdForm() {
+  const nameEl  = $('p-name');
+  const priceEl = $('p-price');
+  const catEl   = $('p-cat');
+  if(!nameEl||!priceEl||!catEl) { toast('Form not ready', 'error'); return; }
+
+  const name  = nameEl.value.trim();
+  const price = parseFloat(priceEl.value);
+  const cat   = catEl.value;
+
+  if(!name)        { toast('Product name is required', 'error'); nameEl.focus(); return; }
+  if(!price||price<=0) { toast('Valid price is required', 'error'); priceEl.focus(); return; }
+  if(!cat)         { toast('Category is required', 'error'); return; }
+
+  const CUST_IDS = ['photo_upload','dua_selection','frame_color','finish','stand_option','double_side','shape','content','size','pack','light_color','custom_text'];
+  const selectedCust = CUST_IDS.filter(id => document.getElementById('co-'+id)?.checked);
+
+  const data = {
+    name, category: cat,
+    description:    $('p-desc')?.value.trim()     || '',
+    badge:          $('p-badge')?.value.trim()     || '',
+    emoji:          $('p-emoji')?.value.trim()     || '🎁',
+    price,
+    comparePrice:   parseFloat($('p-compare')?.value) || null,
+    stock:          parseInt($('p-stock')?.value)      || null,
+    active:         $('p-active')?.value === 'true',
+    featured:       $('p-featured')?.value === 'true',
+    specs:          [...prodSpecs],
+    customisations: selectedCust,
+    variants:       textToVariants($('p-variants')?.value || ''),
+    image:          prodImage,
+  };
+
+  // Show saving state
+  const btn = $('prod-save-btn');
+  const prevText = btn.textContent;
+  btn.textContent = 'Saving…'; btn.disabled = true;
+
+  try {
+    if(editingProductId) {
+      await Store.updateProduct(editingProductId, data);
+      toast('Product updated ✅', 'success');
+    } else {
+      await Store.addProduct(data);
+      toast('Product added 🎉', 'success');
+    }
+    closeProdModal();
+    // renderProducts() is triggered automatically by Store.onUpdate('products')
+  } catch(err) {
+    toast('Error saving product: ' + err.message, 'error');
+    btn.textContent = prevText; btn.disabled = false;
+  }
+}
+
+/* ── Delete Product (async) ─────────────────────────────────── */
+function confirmDeleteProduct(id, name) {
+  $('confirm-title').textContent = 'Delete Product';
+  $('confirm-body').innerHTML = `<p>Delete <strong>${escHtml(name)}</strong>?<br/><span style="font-size:.8rem;color:var(--text-muted)">This cannot be undone.</span></p>`;
+  $('confirm-ok-btn').onclick = async () => {
+    $('confirm-ok-btn').textContent = 'Deleting…'; $('confirm-ok-btn').disabled = true;
+    try {
+      await Store.deleteProduct(id);
+      closeConfirm();
+      toast('Product deleted', 'info');
+    } catch(err) {
+      toast('Error deleting product', 'error');
+      $('confirm-ok-btn').textContent = 'Confirm'; $('confirm-ok-btn').disabled = false;
+    }
+  };
+  $('confirm-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeConfirm() {
+  $('confirm-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+  $('confirm-ok-btn').textContent = 'Confirm'; $('confirm-ok-btn').disabled = false;
+}
+
+/* ════════════════════════════════════════════════════════════
+   ORDERS
+════════════════════════════════════════════════════════════ */
+function renderOrders() {
+  const orders = Store.getOrders();
+  $('page-content').innerHTML = `
+    <div class="admin-section-header">
+      <h2 class="admin-section-title">Orders <span class="badge badge-grey">${orders.length}</span>
+        <span style="font-size:.72rem;color:#22c55e;margin-left:.6rem">● Live</span>
+      </h2>
+    </div>
+    ${orders.length===0
+      ? '<div style="text-align:center;padding:var(--sp-2xl);color:var(--text-muted)">No orders yet. Orders placed by customers will appear here instantly!</div>'
+      : `<div class="table-wrap"><table>
+          <thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Date</th><th></th></tr></thead>
+          <tbody>
+            ${orders.map(o=>`<tr>
+              <td><span style="font-family:var(--font-display);color:var(--gold);font-weight:700">${o.id.slice(-8)}</span></td>
+              <td>
+                <div style="font-weight:500;font-size:.86rem">${escHtml(o.customer?.name||'—')}</div>
+                <div style="font-size:.72rem;color:var(--text-muted)">${escHtml(o.customer?.phone||'')}</div>
+              </td>
+              <td>${(o.items||[]).length}</td>
+              <td style="font-family:var(--font-display);color:var(--gold)">${fmt(o.total||0)}</td>
+              <td><span class="badge badge-grey" style="font-size:.65rem">${escHtml(o.paymentMethod||o.paymentStatus||'Pending')}</span></td>
+              <td>
+                <select class="form-control" style="padding:.3rem .6rem;font-size:.78rem;width:130px" data-status-order-id="${o.id}">
+                  ${STATUS_ORDER.map(s=>`<option value="${s}" ${o.status===s?'selected':''}>${s}</option>`).join('')}
+                </select>
+              </td>
+              <td style="font-size:.74rem;color:var(--text-muted)">${fmtDate(o.createdAt)}</td>
+              <td><button class="btn btn-ghost btn-sm btn-icon" data-view-order="${o.id}" title="View Details">👁</button></td>
+            </tr>`).join('')}
+          </tbody></table></div>`}`;
+}
+
+function openOrderDetail(id) {
+  const o = Store.getOrders().find(ord => ord.id === id);
+  if(!o) return;
+  $('order-modal-title').textContent = 'Order ' + o.id.slice(-8);
+  $('order-modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-lg);margin-bottom:var(--sp-lg)">
+      <div>
+        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:.5rem">Customer</div>
+        <div style="font-weight:600">${escHtml(o.customer?.name||'—')}</div>
+        <div style="font-size:.84rem;color:var(--text-muted)">${escHtml(o.customer?.phone||'')}</div>
+        <div style="font-size:.84rem;color:var(--text-muted)">${escHtml(o.customer?.email||'')}</div>
+      </div>
+      <div>
+        <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:.5rem">Delivery Address</div>
+        <div style="font-size:.84rem">${escHtml(o.customer?.address||'—')}${o.customer?.city?', '+escHtml(o.customer.city):''}</div>
+        ${o.customer?.notes?`<div style="margin-top:.5rem;font-size:.8rem;color:var(--text-muted)">Note: ${escHtml(o.customer.notes)}</div>`:''}
+      </div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:var(--sp-lg)">
+      <table><thead><tr><th>Item</th><th>Options</th><th>Qty</th><th>Price</th></tr></thead>
+      <tbody>${(o.items||[]).map(i=>`<tr>
+        <td><div style="display:flex;align-items:center;gap:.5rem">
+          <div style="width:36px;height:36px;border-radius:var(--r-sm);background:var(--card);display:flex;align-items:center;justify-content:center;font-size:1rem;overflow:hidden;border:1px solid var(--border)">
+            ${i.photo?`<img src="${i.photo}" style="width:100%;height:100%;object-fit:cover"/>`:(i.emoji||'🎁')}
+          </div>
+          <span style="font-size:.82rem;font-weight:500">${escHtml(i.name)}</span>
+        </div></td>
+        <td style="font-size:.72rem;color:var(--text-muted);max-width:120px">${escHtml(i.optLabel||'—')}</td>
+        <td>×${i.qty}</td>
+        <td style="font-family:var(--font-display);color:var(--gold)">${fmt(i.price*i.qty)}</td>
+      </tr>`).join('')}</tbody></table>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-lg)">
+      <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:.4rem"><span style="color:var(--text-muted)">Subtotal</span><span>${fmt(o.subtotal||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:.4rem"><span style="color:var(--text-muted)">Shipping</span><span>${o.shipping===0?'FREE':fmt(o.shipping||0)}</span></div>
+      <div style="border-top:1px solid var(--border);margin:.6rem 0"></div>
+      <div style="display:flex;justify-content:space-between"><span style="font-weight:600">Total</span><span style="font-family:var(--font-display);font-size:1.3rem;color:var(--gold);font-weight:700">${fmt(o.total||0)}</span></div>
+      <div style="margin-top:.8rem;font-size:.8rem;color:var(--text-muted)">
+        Payment: <strong style="color:var(--text-primary)">${escHtml(o.paymentMethod||'—')}</strong> &nbsp;|&nbsp;
+        Status: <span class="badge ${statusClass(o.status)}">${o.status||'Pending'}</span>
+        ${o.paymentId?`<br/>Payment ID: <code style="color:var(--gold)">${o.paymentId}</code>`:''}
+      </div>
+    </div>`;
+  $('order-modal-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeOrderModal() {
+  $('order-modal-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+/* ════════════════════════════════════════════════════════════
+   SETTINGS
+════════════════════════════════════════════════════════════ */
+function renderSettings() {
+  const s = Store.getSettings();
+  $('page-content').innerHTML = `
+    <div style="display:grid;gap:var(--sp-xl);max-width:640px">
+      <div class="admin-section-header"><h2 class="admin-section-title">Store Settings</h2></div>
+
+      <div class="form-group"><label class="form-label">Store Name</label>
+        <input class="form-control" id="s-name" value="${escHtml(s.storeName||'')}"/></div>
+      <div class="grid-2" style="gap:var(--sp-md)">
+        <div class="form-group"><label class="form-label">Shipping Cost (₹)</label>
+          <input class="form-control" id="s-ship" type="number" value="${s.shippingCost||99}"/></div>
+        <div class="form-group"><label class="form-label">Free Shipping Above (₹)</label>
+          <input class="form-control" id="s-free" type="number" value="${s.freeShippingAt||999}"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">WhatsApp Number</label>
+        <input class="form-control" id="s-wa" placeholder="+919876543210" value="${escHtml(s.whatsapp||'')}"/></div>
+      <div class="form-group"><label class="form-label">Contact Email</label>
+        <input class="form-control" id="s-email" type="email" value="${escHtml(s.email||'')}"/></div>
+      <button class="btn btn-gold" id="save-store-btn">Save Settings</button>
+
+      <hr style="border-color:var(--border)"/>
+
+      <div class="admin-section-header"><h2 class="admin-section-title">Razorpay Payment Gateway</h2></div>
+      <div class="form-group"><label class="form-label">Razorpay Key ID</label>
+        <input class="form-control" id="s-rzp" placeholder="rzp_live_..." value="${escHtml(s.razorpayKey||'')}"/>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:.3rem">
+          Get your key from <a href="https://dashboard.razorpay.com" target="_blank" style="color:var(--gold)">Razorpay Dashboard</a> → Settings → API Keys
+        </div>
+      </div>
+      <button class="btn btn-gold" id="save-rzp-btn">Save Razorpay Key</button>
+
+      <hr style="border-color:var(--border)"/>
+
+      <div class="admin-section-header"><h2 class="admin-section-title">Security</h2></div>
+      <div class="form-group"><label class="form-label">New Admin Password</label>
+        <input class="form-control" id="s-pass-new" type="password" placeholder="New password"/></div>
+      <div class="form-group"><label class="form-label">Confirm Password</label>
+        <input class="form-control" id="s-pass-confirm" type="password" placeholder="Confirm new password"/></div>
+      <button class="btn btn-gold" id="save-pass-btn">Change Password</button>
+    </div>`;
+
+  $('save-store-btn').addEventListener('click', saveStoreInfo);
+  $('save-rzp-btn').addEventListener('click', saveRazorpay);
+  $('save-pass-btn').addEventListener('click', changePassword);
+}
+
+async function saveStoreInfo() {
+  const btn = $('save-store-btn');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  try {
+    await Store.saveSettings({
+      storeName:      $('s-name').value.trim(),
+      shippingCost:   parseFloat($('s-ship').value)||99,
+      freeShippingAt: parseFloat($('s-free').value)||999,
+      whatsapp:       $('s-wa').value.trim(),
+      email:          $('s-email').value.trim(),
+    });
+    toast('Settings saved ✅', 'success');
+  } catch(err) { toast('Error saving settings', 'error'); }
+  finally { btn.textContent = 'Save Settings'; btn.disabled = false; }
+}
+
+async function saveRazorpay() {
+  const btn = $('save-rzp-btn');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  try {
+    await Store.saveSettings({ razorpayKey: $('s-rzp').value.trim() });
+    toast('Razorpay key saved ✅', 'success');
+  } catch(err) { toast('Error saving key', 'error'); }
+  finally { btn.textContent = 'Save Razorpay Key'; btn.disabled = false; }
+}
+
+async function changePassword() {
+  const newPass = $('s-pass-new').value;
+  const confirm = $('s-pass-confirm').value;
+  if(!newPass)           { toast('Enter a new password', 'error'); return; }
+  if(newPass !== confirm) { toast('Passwords do not match', 'error'); return; }
+  if(newPass.length < 6)  { toast('Password must be at least 6 characters', 'error'); return; }
+  const btn = $('save-pass-btn');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  try {
+    await Store.setAdminPass(newPass);
+    toast('Password changed ✅', 'success');
+    $('s-pass-new').value = ''; $('s-pass-confirm').value = '';
+  } catch(err) { toast('Error changing password', 'error'); }
+  finally { btn.textContent = 'Change Password'; btn.disabled = false; }
+}
+</script>
+</body>
+</html>
